@@ -47,6 +47,7 @@ func (t *TextTemplate) AddData(name string, data interface{}) error {
 // these types handle a command-line option.
 type Configurer interface {
 	Configure(t Template) error
+	DefValue() string
 }
 
 // ConfigBuilder is the interface that defines a type
@@ -70,7 +71,7 @@ func (v *ConfigValue) Set(option string) error {
 }
 
 func (v *ConfigValue) String() string {
-	return "TODO" // Return "default" value
+	return v.DefValue()
 }
 
 // ConfigRegistry type manages the "Groom" flagSet and
@@ -78,7 +79,6 @@ func (v *ConfigValue) String() string {
 type ConfigRegistry struct {
 	cfgs []Configurer
 	flgs flag.FlagSet
-	//rwmx sync.RWMutex
 }
 
 // Register registers a mapping between a ConfigBuilder and a flag.
