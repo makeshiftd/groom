@@ -57,16 +57,16 @@ type ConfigBuilder interface {
 }
 
 type ConfigValue struct {
-	cr []Configurer
-	cb ConfigBuilder
+	cfgs []Configurer
+	cbld ConfigBuilder
 }
 
 func (v *ConfigValue) Set(option string) error {
-	conf, err := v.cb.Build(option)
+	cfg, err := v.cbld.Build(option)
 	if err != nil {
 		return err
 	}
-	v.cr = append(v.cr, conf)
+	v.cfgs = append(v.cfgs, cfg)
 	return nil
 }
 
@@ -82,6 +82,6 @@ type ConfigRegistry struct {
 }
 
 // Register registers a mapping between a ConfigBuilder and a flag.
-func (c *ConfigRegistry) Register(cb ConfigBuilder, name string, usage string) {
-	c.flgs.Var(&ConfigValue{cb: cb, cr: c.cfgs}, name, usage)
+func (c *ConfigRegistry) Register(cbld ConfigBuilder, name string, usage string) {
+	c.flgs.Var(&ConfigValue{ cbld:cbld, cfgs:c.cfgs }, name, usage)
 }
