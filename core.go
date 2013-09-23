@@ -47,13 +47,13 @@ func (t *TextTemplate) AddData(name string, data interface{}) error {
 // these types handle a command-line option.
 type Configurer interface {
 	Configure(t Template) error
-	DefValue() string
 }
 
 // ConfigBuilder is the interface that defines a type
 // that can build a Configurer from the given option.
 type ConfigBuilder interface {
 	Build(option string) (Configurer, error)
+	DefValue() string
 }
 
 type ConfigValue struct {
@@ -71,7 +71,7 @@ func (v *ConfigValue) Set(option string) error {
 }
 
 func (v *ConfigValue) String() string {
-	return v.DefValue()
+	return v.cbld.DefValue()
 }
 
 // ConfigRegistry type manages the "Groom" flagSet and
