@@ -10,8 +10,8 @@ import "text/template"
 // be unified under this common interface.
 type Template interface {
 	AddData(name string, data interface{}) error
-	// AddFunc(name string, fucn  interface{}) error
-	// AddTmpl(name string, srcs ...string) error
+	// AddFunc(name string, fucn interface{}) error
+	AddTmpl(name string, srcs ...string) error
 	// LkupData(name string) interface{}
 	// LkupFunc(name string) interface{}
 	// LkupTmpl(name string)
@@ -41,6 +41,26 @@ func (t *TextTemplate) AddData(name string, data interface{}) error {
 	t.rwmx.Unlock()
 	return nil
 }
+
+
+// AddTmpl adds the given (sub)template to the template set.
+func (t *TextTemplate) AddTmpl(name string, srcs ...string) error {
+	var tt *template.Template
+	if t.tmpl == nil {
+		tt = template.New(name)
+		t.tmpl = tt
+	} else {
+		tt = t.tmpl.New(name)
+	}
+	for _, src := range srcs {
+		_, err := tt.Parse(src)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 
 // Configurer is the interface that defines a type
 // that is able to configure a template. Typically,
