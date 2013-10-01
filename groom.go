@@ -5,8 +5,16 @@ package main
 
 import "fmt"
 
-var Version = "0.0.0"
+var Version = "0.0.1"
+
+var cfgReg = NewConfigRegistry()
 
 func main() {
-	fmt.Printf("Welcome to Groom! (v%s)\n", Version)
+	cfgReg.Process();
+
+	if cfgReg.IsHtml() {
+		fmt.Println("HTML safe templates requested.")
+	} else {
+		fmt.Println("Standard text templates requested")
+	}
 }
