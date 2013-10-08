@@ -8,7 +8,7 @@ import "os"
 import "fmt"
 import "bytes"
 
-var Version = "0.1.0"
+var Version = "0.1.1a"
 
 var cfgReg = NewConfigRegistry()
 
@@ -27,10 +27,22 @@ func main() {
 		t = NewTextTemplate()
 	}
 
+	err = InitDefaultData(t)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error", err)
+		os.Exit(-1)
+	}
+
+	err = InitDefaultFuncs(t)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error", err)
+		os.Exit(-1)
+	}
+
 	for _, cfg := range cfgs {
 		err = cfg.Configure(t)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintln(os.Stderr, "Configuring", err)
 			os.Exit(-1)
 		}
 	}
@@ -71,7 +83,7 @@ func main() {
 	}
 
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, "Executing", err)
 		os.Exit(-1)
 	}
 

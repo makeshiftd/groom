@@ -7,6 +7,7 @@ import "time"
 import "flag"
 import "sync"
 import "errors"
+import "strings"
 import "strconv"
 import "math/rand"
 import "io/ioutil"
@@ -29,6 +30,89 @@ func randNumSuffix(name string, length int) string {
 }
 
 
+
+func lookupTimeLayout(arg interface{}) (layout string) {
+	name := fmt.Sprint(arg)
+	switch strings.ToLower(name) {
+	case "ansic":
+		layout = time.ANSIC
+	case "unixdate":
+		layout = time.UnixDate
+	case "rubydate":
+        layout = time.RubyDate
+    case "rfc822":
+    	layout = time.RFC822
+    case "rfc822z":
+    	layout = time.RFC822Z
+    case "rfc850":
+    	layout = time.RFC850
+    case "rfc1123":
+    	layout = time.RFC1123
+    case "rfc1123z":
+    	layout = time.RFC1123Z
+    case "rfc3339":
+    	layout = time.RFC3339
+    case "rfc3339nano":
+    	layout = time.RFC3339Nano
+    case "kitchen":
+    	layout = time.Kitchen
+    case "stamp":
+    	layout = time.Stamp
+    case "stampmilli":
+    	layout = time.StampMilli
+    case "stampmicro":
+    	layout = time.StampMicro
+    case "stampnano":
+    	layout = time.StampNano
+	default:
+		layout = name
+	}
+	return
+}
+
+
+
+func ftimeDefaultFunc(args ...interface{}) (string, error) {
+	nargs := len(args)
+
+	if nargs == 0 {
+		return time.Now().Format(time.RFC3339), nil
+	}
+
+	if nargs == 1 {
+		if t, ok := args[0].(time.Time); ok {
+			return t.Format(time.RFC3339), nil
+		}
+		return time.Now().Format(lookupTimeLayout(args[0])), nil
+	}
+
+	if t, ok := args[0].(time.Time); ok {
+		return t.Format(lookupTimeLayout(args[1])), nil
+	}
+
+	if t, err := ptimeDefaultFunc(fmt.Sprint(args[0])); err == nil {
+		return t.Format(lookupTimeLayout(args[1])), nil
+	}
+		
+	return "", errors.New(fmt.Sprintf("invalid time argument \"%s\"", args[0]))
+}
+
+
+func ptimeDefaultFunc(args ...string) (time.Time, error) {
+	nargs := len(args)
+
+	if nargs == 0 {
+		return time.Now(), nil
+	}
+
+	if nargs == 1 {
+		return time.Parse(time.RFC3339, args[0])
+	}
+
+	return time.Parse(lookupTimeLayout(args[0]), args[1])
+}
+
+
 // Template is the interface providing extra methods over
 // the standard template types, but allow allows the two
 // standard tyopes (text/template and html/template) to
@@ -48,8 +132,16 @@ func InitDefaultData(t Template) {
 
 
 // InitDefaultFuncs adds the default functions to the given template.
-func InitDefaultFuncs(t Template) {
-	// No default functions. Reserved for future use.
+func InitDefaultFuncs(t Template) (err error) {
+	err = t.AddFunc("ptime", ptimeDefaultFunc)
+	if err != nil {
+		return
+	}
+	err = t.AddFunc("ftime", ftimeDefaultFunc)
+	if err != nil {
+		return
+	}
+	return
 }
 
 
@@ -86,16 +178,19 @@ func (t *TextTemplate) AddData(name string, data interface{}) error {
 // AddFunc add the given function to the template.
 // These functions will be used during template execution.
 func (t *TextTemplate) AddFunc(name string, data interface{}) (err error) {
+	fmt.Println("AddFunc")
 	defer func() { 
 		// Recover from panic caused by adding function to template
 		// that does not have the correct number or type of return values.
-	 	if recover() != nil {
+	 	if e := recover(); e != nil {
+	 		fmt.Println("Help!!", e);
 	 		err = errors.New("invalid template function \"" + name + "\"")
 	 	}
 	}()
 	t.rwmx.Lock()
 	defer t.rwmx.Unlock()
 	fm := map[string]interface{} { name:data }
+	fmt.Printf("Function \"%s\" added\n", name)
 	t.tmpl.Funcs(template.FuncMap(fm))
 	return nil
 }
@@ -113,6 +208,7 @@ func (t *TextTemplate) AddTmpl(name string, srcs ...string) error {
 		tt = t.tmpl.Lookup(name)
 		if tt == nil {
 			tt = t.tmpl.New(name)
+			InitDefaultFuncs(t)
 		}
 	}
 	for _, src := range srcs {
