@@ -1,0 +1,5 @@
+{{/* +import "layout" */}}
+
+{{ define "content" }}Hello World{{end}}
+
+{{ template "layout" . }}
