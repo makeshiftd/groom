@@ -1,5 +1,3 @@
 <html>
-    <body>
-    {{ block "content" . }}{{end}}
-    </body>
+    <body>{{ block "content" . }}DEFAULT{{end}}</body>
 </html>

@@ -3,45 +3,38 @@ package main
 import (
     "os"
     "io"
-    //"fmt"
     "regexp"
-    //"bytes"
     "errors"
     "strings"
     "io/ioutil"
-    //"reflect"
-    //"go/ast"
-    //"go/parser"
     "path/filepath"
     ttemplate "text/template"
     htemplate "html/template"
+    .  "../debug"
 )
 
-var COMMENT_REGEXP = regexp.MustCompile("^\\s*{{\\s*/\\*\\s*(.*?)\\s*\\*/}}")
+
+type FuncMap map[string]interface{}
 
 type Template struct {
+    safe bool
     tmpl interface{}
-    imps map[string]string
+    funcs FuncMap
 }
 
 
-func new(name, path, text string, safe bool) (*Template, error) {
-    if safe {
-        tmpl, err := htemplate.New(name).Parse(text)
-        if err != nil {
-            return nil, err
-        }
-        return &Template{ tmpl:tmpl, imps:map[string]string{ name:path }}, nil
-    }
-    tmpl, err := htemplate.New(name).Parse(text)
-    if err != nil {
-        return nil, err
-    }
-    return &Template{ tmpl:tmpl, imps:map[string]string{ name:path }}, nil
+var debug = Debug("template")
+
+
+func New(safe bool) *Template {
+    return &Template{ safe:safe }
 }
 
+func (t *Template) ParseFile(name, path string) (*Template, error) {
+    return t.parseFileWithLevel(name, path, 0)
+}
 
-func NewFromFile(name, path string, safe bool) (*Template, error) {
+func (t *Template) parseFileWithLevel(name, path string, level int) (*Template, error) {
     f, err := os.Open(path)
     if err != nil {
         return nil, err
@@ -51,135 +44,127 @@ func NewFromFile(name, path string, safe bool) (*Template, error) {
     if rerr != nil {
         return nil, rerr
     }
-    return NewFromText(name, path, string(buf), safe)
+    return t.parseTextWithLevel(name, path, string(buf), level)
 }
 
 
-func NewFromText(name, path, text string, safe bool) (t *Template, err error) {
-    path, err = filepath.Abs(path)
-    if err != nil {
-        return nil, err
+func (t *Template) ParseText(name, path, text string) (tt *Template, err error) {
+    return t.parseTextWithLevel(name, path, text, 0)
+}
+
+
+func (t *Template) parseTextWithLevel(name, path, text string, level int) (tt *Template, err error) {
+    if level == 1000 {
+        return nil, errors.New("template import level exceeded")
     }
+    level += 1
+
     imps, ierr := parseImports(text)
     if ierr != nil {
         return nil, ierr
     }
-    t, err = new(name, path, text, safe)
-    if err != nil {
-        return nil, err
-    }
+
     dir := filepath.Dir(path)
-    for n, p := range(imps) {
-        if !filepath.IsAbs(p) {
-            p = filepath.Clean(filepath.Join(dir, p))
+    for name, path := range(imps) {
+        if !filepath.IsAbs(path) {
+            path = filepath.Join(dir, path)
         }
-        _, err := t.ParseFile(n, p)
+        _, err := t.parseFileWithLevel(name, path, level)
         if err != nil {
             return nil, err
         }
     }
-    return t, nil
+
+    tt, err = t.parse(name, text)
+    if err != nil {
+        return nil, err
+    }
+    return tt, nil
 }
 
 
 func (t *Template) Lookup(name string) *Template {
     switch tmpl := t.tmpl.(type) {
     case *ttemplate.Template:
-        tt := tmpl.Lookup(name)
-        if tt == nil {
+        tmpl = tmpl.Lookup(name)
+        if tmpl == nil {
             return nil
         }
-        return &Template{ tmpl:tt, imps:t.imps }
+        return &Template{ tmpl:tmpl, safe:t.safe, funcs:t.funcs }
     case *htemplate.Template:
-        tt := tmpl.Lookup(name)
-        if tt == nil {
+        tmpl = tmpl.Lookup(name)
+        if tmpl == nil {
             return nil
         }
-        return &Template{ tmpl:tt, imps:t.imps }
+        return &Template{ tmpl:tmpl, safe:t.safe, funcs:t.funcs }
     default:
-        panic("template type error")
+        return nil
     }
 }
 
 
-func (t *Template) Execute(wr io.Writer, data interface{}) error {
+func (t *Template) Name() string {
     switch tmpl := t.tmpl.(type) {
     case *ttemplate.Template:
-        return tmpl.Execute(wr, data)
+        return tmpl.Name()
     case *htemplate.Template:
-        return tmpl.Execute(wr, data)
+        return tmpl.Name()
     default:
-        panic("template type error")
+        return ""
+    }
+}
+
+func (t *Template) Execute(w io.Writer, data interface{}) error {
+    switch tmpl := t.tmpl.(type) {
+    case *ttemplate.Template:
+        return tmpl.Execute(w, data)
+    case *htemplate.Template:
+        return tmpl.Execute(w, data)
+    default:
+        return nil
     }
 }
 
 
-func (t *Template) parse(name, path, text string) (*Template, error) {
+func (t *Template) parse(name, text string) (*Template, error) {
     switch tmpl := t.tmpl.(type) {
     case *ttemplate.Template:
-        tt, err := tmpl.New(name).Parse(text)
+        debug("Parse:", name)
+        tmpl, err := tmpl.New(name).Parse(text)
         if err != nil {
             return nil, err
         }
-        return &Template{ tmpl:tt, imps:t.imps }, nil
+        return &Template{ tmpl:tmpl, safe:t.safe, funcs:t.funcs }, nil
     case *htemplate.Template:
+        debug("Parse:", name)
         tt, err := tmpl.New(name).Parse(text)
         if tt == nil {
             return nil, err
         }
-        return &Template{ tmpl:tt, imps:t.imps }, nil
+        return &Template{ tmpl:tmpl, safe:t.safe, funcs:t.funcs }, nil
     default:
-        panic("template type error")
-    }
-}
-
-
-func (t *Template) ParseFile(name, path string) (*Template, error) {
-    f, err := os.Open(path)
-    if err != nil {
-        return nil, err
-    }
-    defer f.Close()
-    buf, rerr := ioutil.ReadAll(f)
-    if rerr != nil {
-        return nil, rerr
-    }
-    return t.ParseText(name, path, string(buf))
-}
-
-
-func (t *Template) ParseText(name, path, text string) (tt *Template, err error) {
-    path, err = filepath.Abs(path)
-    if err != nil {
-        return nil, err
-    }
-    if p, ok := t.imps[name]; ok && p != path {
-        return nil, errors.New("duplicate template: " + name)
-    }
-    if t.Lookup(name) != nil {
-        return nil, errors.New("duplicate template: " + name)
-    }
-    imps, ierr := parseImports(text)
-    if ierr != nil {
-        return nil, ierr
-    }
-    tt, err = t.parse(name, path, text)
-    if err != nil {
-        return nil, err
-    }
-    dir := filepath.Dir(path)
-    for n, p := range(imps) {
-        if !filepath.IsAbs(p) {
-            p = filepath.Clean(filepath.Join(dir, p))
+        if t.safe {
+            debug("New:", name)
+            funcs := htemplate.FuncMap(t.funcs)
+            tmpl, err := htemplate.New(name).Funcs(funcs).Parse(text)
+            if err != nil {
+                return nil, err
+            }
+            t.tmpl = tmpl
+        } else {
+            debug("New:", name)
+            funcs := ttemplate.FuncMap(t.funcs)
+            tmpl, err := ttemplate.New(name).Funcs(funcs).Parse(text)
+            if err != nil {
+                return nil, err
+            }
+            t.tmpl = tmpl
         }
-        _, err := t.ParseFile(n, p)
-        if err != nil {
-            return nil, err
-        }
+        return t, nil
     }
-    return tt, nil
 }
 
+var COMMENT_REGEXP = regexp.MustCompile("^\\s*{{\\s*/\\*\\s*(.*?)\\s*\\*/}}")
 
 var IMPORT_REGEXP = regexp.MustCompile("^\\+import\\s+(([^\\s]+)\\s+)?\"([^\"]+)\"\\s*$")
 

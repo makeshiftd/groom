@@ -1,7 +1,6 @@
 package main
 
 import (
-    "fmt"
     "bytes"
     "testing"
 )
@@ -56,7 +55,7 @@ func TestParseImports(t *testing.T) {
 
 func TestTemplate1(t *testing.T) {
 
-    tmpl, err := NewFromFile("tmpl1", "./test/tmpl1.grm", false)
+    tmpl, err := New(false).ParseFile("tmpl1", "./test/tmpl1.grm")
     if err != nil {
         t.Fatal(err)
     }
@@ -74,16 +73,15 @@ func TestTemplate1(t *testing.T) {
     <body>Hello World</body>
 </html>
 `
-
     if bytes.Compare(buf.Bytes(), []byte(result)) != 0 {
-        t.Fatal("template does not match expected result")
+        t.Fatal("template does not match expected:\n", result)
     }
 }
 
 
 func TestTemplate2(t *testing.T) {
 
-    tmpl, err := NewFromFile("tmpl2", "./test/tmpl2.grm", false)
+    tmpl, err := New(false).ParseFile("tmpl2", "./test/tmpl2.grm")
     if err != nil {
         t.Fatal(err)
     }
@@ -96,6 +94,12 @@ func TestTemplate2(t *testing.T) {
     if err := tmpl.Execute(buf, data); err != nil {
         t.Fatal(err)
     }
-
-    fmt.Println(string(buf.Bytes()))
+    
+    result := `<html>
+    <body>Hello World</body>
+</html>
+`
+    if bytes.Compare(buf.Bytes(), []byte(result)) != 0 {
+        t.Fatal("template does not match expected:\n", result)
+    }
 }
