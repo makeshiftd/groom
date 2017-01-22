@@ -1,0 +1,3 @@
+<html>
+    <body>{{ stdin | str }}</body>
+</html>

@@ -1,0 +1,3 @@
+<html>
+    <body>{{ with $data := stdin | json }}{{ $data.greeting }}{{end}}</body>
+</html>

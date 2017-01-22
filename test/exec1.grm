@@ -1,0 +1,3 @@
+<html>
+    <body>{{ exec "go" "run" "test/exec1.go" .greeting | str }}</body>
+</html>

@@ -38,7 +38,7 @@ func groom(args []string) int {
 
         name := "stdin.grm"
         path := filepath.Join(".", name)
-        tmpl, err = template.New(false).ParseText(name, path, string(buf))
+        tmpl, err = template.New(funcs, false).ParseText(name, path, string(buf))
         if err != nil {
             fmt.Fprintln(os.Stderr, err)
             return 1
@@ -48,7 +48,7 @@ func groom(args []string) int {
             name := filepath.Base(path)
             if tmpl == nil {
                 debug("New Parse File:", name, path)
-                tmpl, err = template.New(false).ParseFile(name, path)
+                tmpl, err = template.New(funcs, false).ParseFile(name, path)
             } else {
                 debug("Parse File:", name, path)
                 _, err = tmpl.ParseFile(name, path)

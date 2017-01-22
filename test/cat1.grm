@@ -1,0 +1,3 @@
+<html>
+    <body>{{ with $data := cat .data | json }}{{ $data.greeting }}{{end}}</body>
+</html>

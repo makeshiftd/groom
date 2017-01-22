@@ -26,8 +26,8 @@ type Template struct {
 var debug = Debug("template")
 
 
-func New(safe bool) *Template {
-    return &Template{ safe:safe }
+func New(funcs FuncMap, safe bool) *Template {
+    return &Template{ funcs:funcs, safe:safe }
 }
 
 func (t *Template) ParseFile(name, path string) (*Template, error) {
