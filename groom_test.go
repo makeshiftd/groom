@@ -10,6 +10,12 @@ import (
 )
 
 
+var result = []byte(`<html>
+    <body>Hello World</body>
+</html>
+`)
+
+
 func TestMain(m *testing.M) {
     if os.Getenv("EXEC_GROOM") == "TRUE" {
         os.Exit(groom(os.Args[1:]))
@@ -38,28 +44,28 @@ func GroomStdin(r io.Reader, args ...string) (*exec.Cmd, error) {
     return cmd, nil
 }
 
-
-func TestArgTmpl1(t *testing.T) {
-    output, err := GroomCmd("--greeting=Hello World", "test/tmpl1.grm").Output()
+func CompareOutput(t *testing.T, cmd *exec.Cmd, data []byte) {
+    output, err := cmd.Output()
     if err != nil {
         switch err := err.(type) {
-        case *exec.ExitError:
-            t.Fatal("Groom exited with error:\n", string(err.Stderr))
         default:
-            t.Fatal("Error running groom command:\n", err)
+            t.Fatal("Command failed to start:\n", err)
+        case *exec.ExitError:
+            t.Fatal("Command failed with error:\n", string(err.Stderr))
         }
     }
-
-    result := []byte(`<html>
-    <body>Hello World</body>
-</html>
-`)
-
     if bytes.Compare(output, result) != 0 {
-        t.Fatal("Output does not match expected result:\n", string(result))
+        t.Fatal("Command output comparison failed:\n", string(result), "\nExpecting:\n", string(data))
     }
+    return
 }
 
+
+func TestArgTmpl1(t *testing.T) {
+    cmd := GroomCmd("--greeting=Hello World", "test/tmpl1.grm")
+
+    CompareOutput(t, cmd, result)
+}
 
 func TestStdinTmpl1(t *testing.T) {
     tmpl, oerr := os.Open("test/tmpl1.grm")
@@ -70,126 +76,42 @@ func TestStdinTmpl1(t *testing.T) {
 
     cmd, cerr := GroomStdin(tmpl, "--greeting=Hello World")
     if cerr != nil {
-        t.Fatal("Error creating cmd:", cerr)
+        t.Fatal("Error creating command:", cerr)
     }
 
-    output, err := cmd.Output()
-    if err != nil {
-        switch err := err.(type) {
-        case *exec.ExitError:
-            t.Fatal("Groom exited with error:\n", string(err.Stderr))
-        default:
-            t.Fatal("Error running groom command:", err)
-        }
-    }
-
-    result := []byte(`<html>
-    <body>Hello World</body>
-</html>
-`)
-
-    if bytes.Compare(output, result) != 0 {
-        t.Fatal("Output does not match expected result:\n", string(result))
-    }
+    CompareOutput(t, cmd, result)
 }
-
 
 func TestExecFunc1(t *testing.T) {
-    output, err := GroomCmd("--greeting=Hello World", "test/exec1.grm").Output()
-    if err != nil {
-        switch err := err.(type) {
-        case *exec.ExitError:
-            t.Fatal("Groom exited with error:\n", string(err.Stderr))
-        default:
-            t.Fatal("Error running groom command:", err)
-        }
-    }
+    cmd := GroomCmd("--greeting=Hello World", "test/exec1.grm")
 
-    result := []byte(`<html>
-    <body>Hello World</body>
-</html>
-`)
-
-    if bytes.Compare(output, result) != 0 {
-        t.Fatal("Output does not match expected result:\n", string(result))
-    }
+    CompareOutput(t, cmd, result)
 }
-
 
 func TestStdinFunc1(t *testing.T) {
     data := bytes.NewBuffer([]byte("Hello World"))
-    
+
     cmd, cerr := GroomStdin(data, "test/stdin1.grm")
     if cerr != nil {
-        t.Fatal("Error creating cmd:", cerr)
+        t.Fatal("Error creating command:", cerr)
     }
 
-    output, err := cmd.Output()
-    if err != nil {
-        switch err := err.(type) {
-        case *exec.ExitError:
-            t.Fatal("Groom exited with error:\n", string(err.Stderr))
-        default:
-            t.Fatal("Error running groom command:", err)
-        }
-    }
-
-    result := []byte(`<html>
-    <body>Hello World</body>
-</html>
-`)
-
-    if bytes.Compare(output, result) != 0 {
-        t.Fatal("Output does not match expected result:\n", string(result))
-    }
+    CompareOutput(t, cmd, result)
 }
 
 func TestJsonFunc1(t *testing.T) {
     data := bytes.NewBuffer([]byte(`{ "greeting":"Hello World" }`))
-    
+
     cmd, cerr := GroomStdin(data, "test/json1.grm")
     if cerr != nil {
-        t.Fatal("Error creating cmd:", cerr)
+        t.Fatal("Error creating command:", cerr)
     }
 
-    output, err := cmd.Output()
-    if err != nil {
-        switch err := err.(type) {
-        case *exec.ExitError:
-            t.Fatal("Groom exited with error:\n", string(err.Stderr))
-        default:
-            t.Fatal("Error running groom command:", err)
-        }
-    }
-
-    result := []byte(`<html>
-    <body>Hello World</body>
-</html>
-`)
-
-    if bytes.Compare(output, result) != 0 {
-        t.Fatal("Output does not match expected result:\n", string(result))
-    }
+    CompareOutput(t, cmd, result)
 }
 
-
 func TestCatFunc1(t *testing.T) {
-    output, err := GroomCmd("--data=test/cat1.json", "test/cat1.grm").Output()
-    if err != nil {
-        switch err := err.(type) {
-        case *exec.ExitError:
-            t.Fatal("Groom exited with error:\n", string(err.Stderr))
-        default:
-            t.Fatal("Error running groom command:", err)
-        }
-    }
+    cmd := GroomCmd("--data=test/cat1.json", "test/cat1.grm")
 
-    result := []byte(`<html>
-    <body>Hello World</body>
-</html>
-`)
-
-    if bytes.Compare(output, result) != 0 {
-        t.Fatal("Output does not match expected result:\n", string(result))
-    }
+    CompareOutput(t, cmd, result)
 }
