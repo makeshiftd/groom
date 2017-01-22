@@ -1,4 +1,4 @@
-package main
+package template
 
 import (
     "bytes"
@@ -94,7 +94,7 @@ func TestTemplate2(t *testing.T) {
     if err := tmpl.Execute(buf, data); err != nil {
         t.Fatal(err)
     }
-    
+
     result := `<html>
     <body>Hello World</body>
 </html>
