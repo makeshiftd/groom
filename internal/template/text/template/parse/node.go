@@ -69,6 +69,7 @@ const (
 	NodeTemplate                   // A template invocation action.
 	NodeVariable                   // A $ variable.
 	NodeWith                       // A with action.
+	NodeApply                      // An apply action.
 )
 
 // Nodes.
@@ -807,6 +808,33 @@ func (t *Tree) newWith(pos Pos, line int, pipe *PipeNode, list, elseList *ListNo
 
 func (w *WithNode) Copy() Node {
 	return w.tr.newWith(w.Pos, w.Line, w.Pipe.CopyPipe(), w.List.CopyList(), w.ElseList.CopyList())
+}
+
+// ApplyNode represents a {{apply}} action and its commands.
+type ApplyNode struct {
+	NodeType
+	Pos
+	tr       *Tree
+	Line     int       // The line number in the input. Deprecated: Kept for compatibility.
+	Pipe     *PipeNode // The pipeline to be evaluated.
+	List     *ListNode // What to execute and then apply pipeline.
+	ElseList *ListNode
+}
+
+func (t *Tree) newApply(pos Pos, line int, pipe *PipeNode, list, elseList *ListNode) *ApplyNode {
+	return &ApplyNode{tr: t, NodeType: NodeApply, Pos: pos, Line: line, Pipe: pipe, List: list, ElseList: elseList}
+}
+
+func (a *ApplyNode) Copy() Node {
+	return a.tr.newApply(a.Pos, a.Line, a.Pipe.CopyPipe(), a.List.CopyList(), a.ElseList.CopyList())
+}
+
+func (a *ApplyNode) tree() *Tree {
+	return a.tr
+}
+
+func (a *ApplyNode) String() string {
+	return fmt.Sprintf("{{apply %s}}%s{{end}}", a.Pipe, a.List)
 }
 
 // TemplateNode represents a {{template}} action.

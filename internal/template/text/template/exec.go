@@ -12,7 +12,8 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"text/template/parse"
+
+	"github.com/makeshiftd/groom/internal/template/text/template/parse"
 )
 
 // maxExecDepth specifies the maximum stack depth of templates within
@@ -20,6 +21,10 @@ import (
 // recursive template invocations. This limit allows us to return
 // an error instead of triggering a stack overflow.
 const maxExecDepth = 100000
+
+// maxApplyBuffer specifies the maximum size of the apply node
+// execution buffer size. (Should this be configurable?)
+const maxApplyBuffer = 100 * 1024 * 1024 // 100MB
 
 // state represents the state of an execution. It's not part of the
 // template so that multiple executions of the same template
@@ -251,6 +256,8 @@ func (s *state) walk(dot reflect.Value, node parse.Node) {
 		}
 	case *parse.WithNode:
 		s.walkIfOrWith(parse.NodeWith, dot, node.Pipe, node.List, node.ElseList)
+	case *parse.ApplyNode:
+		s.walkApply(parse.NodeApply, dot, node.Pipe, node.List, node.ElseList)
 	default:
 		s.errorf("unknown node: %s", node)
 	}
@@ -273,6 +280,24 @@ func (s *state) walkIfOrWith(typ parse.NodeType, dot reflect.Value, pipe *parse.
 		}
 	} else if elseList != nil {
 		s.walk(dot, elseList)
+	}
+}
+
+// walkApply walk an 'apply' node. The node content is executed
+// then the pipeline is executed with '$content' variable.
+func (s *state) walkApply(typ parse.NodeType, dot reflect.Value, pipe *parse.PipeNode, list, elseList *parse.ListNode) {
+	defer s.pop(s.mark())
+
+	buf := &bytes.Buffer{}
+	wr := s.wr
+	s.wr = buf
+	s.walk(dot, list)
+	s.wr = wr
+
+	s.push("$content", reflect.ValueOf(buf.String()))
+	val := s.evalPipeline(dot, pipe)
+	if len(pipe.Decl) == 0 {
+		s.printValue(pipe, val)
 	}
 }
 

@@ -267,6 +267,7 @@ func IsEmptyTree(n Node) bool {
 	case *TextNode:
 		return len(bytes.TrimSpace(n.Text)) == 0
 	case *WithNode:
+	case *ApplyNode:
 	default:
 		panic("unknown node: " + n.String())
 	}
@@ -373,6 +374,8 @@ func (t *Tree) action() (n Node) {
 		return t.templateControl()
 	case itemWith:
 		return t.withControl()
+	case itemApply:
+		return t.applyControl()
 	}
 	t.backup()
 	token := t.peek()
@@ -504,6 +507,53 @@ func (t *Tree) rangeControl() Node {
 // If keyword is past.
 func (t *Tree) withControl() Node {
 	return t.newWith(t.parseControl(false, "with"))
+}
+
+func (t *Tree) parseApply(context string) (pos Pos, line int, pipe *PipeNode, list, elseList *ListNode) {
+	defer t.popVars(len(t.vars))
+
+	t.vars = append(t.vars, "$content")
+	pipe = t.pipeline(context)
+	t.popVars(len(t.vars) - 1)
+
+	if len(pipe.Decl) > 0 {
+		t.errorf("declaration not allowed; %s", pipe)
+	}
+
+	var next Node
+	list, next = t.itemList()
+	switch next.Type() {
+	case nodeEnd: //done
+	case nodeElse:
+		// if allowElseIf {
+		// 	// Special case for "else if". If the "else" is followed immediately by an "if",
+		// 	// the elseControl will have left the "if" token pending. Treat
+		// 	//	{{if a}}_{{else if b}}_{{end}}
+		// 	// as
+		// 	//	{{if a}}_{{else}}{{if b}}_{{end}}{{end}}.
+		// 	// To do this, parse the if as usual and stop at it {{end}}; the subsequent{{end}}
+		// 	// is assumed. This technique works even for long if-else-if chains.
+		// 	// TODO: Should we allow else-if in with and range?
+		// 	if t.peek().typ == itemIf {
+		// 		t.next() // Consume the "if" token.
+		// 		elseList = t.newList(next.Position())
+		// 		elseList.append(t.ifControl())
+		// 		// Do not consume the next item - only one {{end}} required.
+		// 		break
+		// 	}
+		// }
+		elseList, next = t.itemList()
+		if next.Type() != nodeEnd {
+			t.errorf("expected end; found %s", next)
+		}
+	}
+	return pipe.Position(), pipe.Line, pipe, list, elseList
+}
+
+// Apply:
+//  {{appy pipeline}} itemList {{end}}
+func (t *Tree) applyControl() Node {
+	return t.newApply(t.parseApply("apply"))
 }
 
 // End:
