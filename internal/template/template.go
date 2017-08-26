@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	ttemplate "github.com/makeshiftd/groom/internal/template/text/template"
+	"github.com/makeshiftd/groom/internal/template/text/template/parse"
 	"github.com/xyplane/debugger"
 )
 
@@ -22,7 +23,7 @@ type Template struct {
 	funcs FuncMap
 }
 
-var debug = debugger.Debug("template")
+var debug = debugger.Debug("groom:template")
 
 func New(funcs FuncMap, safe bool) *Template {
 	return &Template{funcs: funcs, safe: safe}
@@ -33,6 +34,7 @@ func (t *Template) ParseFile(name, path string) (*Template, error) {
 }
 
 func (t *Template) parseFileWithLevel(name, path string, level int) (*Template, error) {
+	debug("Open path: %s", path)
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -53,29 +55,83 @@ func (t *Template) parseTextWithLevel(name, path, text string, level int) (tt *T
 	if level == 1000 {
 		return nil, errors.New("template import level exceeded")
 	}
-	level += 1
-
-	imps, ierr := parseImports(text)
-	if ierr != nil {
-		return nil, ierr
-	}
+	level++
 
 	dir := filepath.Dir(path)
-	for name, path := range imps {
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(dir, path)
+
+	trees, perr := parse.Parse(name, text, "{{", "}}", t.funcs)
+	if perr != nil {
+		return nil, perr
+	}
+
+	var stack []parse.Node
+
+	push := func(nodes ...parse.Node) {
+		for idx := len(nodes) - 1; idx >= 0; idx-- {
+			stack = append(stack, nodes[idx])
 		}
-		_, err := t.parseFileWithLevel(name, path, level)
+	}
+
+	pop := func() (parse.Node, bool) {
+		if len(stack) == 0 {
+			return nil, false
+		}
+		node := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		return node, true
+	}
+
+	for _, tree := range trees {
+		push(tree.Root.Nodes...)
+
+		for node, ok := pop(); ok; node, ok = pop() {
+			switch node := node.(type) {
+			case *parse.TemplateNode:
+				imp := strings.Split(node.Name, " ")
+				var name, path string
+				if len(imp) > 0 && (imp[0] == "import") {
+					if len(imp) == 3 {
+						name = imp[1]
+						path = imp[2]
+					} else if len(imp) == 2 {
+						path = imp[1]
+					} else {
+						// ERROR
+					}
+					//name, path := istmt[2], filepath.FromSlash(istmt[3])
+					if filepath.Ext(path) == "" {
+						path += ".grm"
+					}
+					if name == "" {
+						name = nameFromPath(path)
+					}
+					if !filepath.IsAbs(path) {
+						path = filepath.Join(dir, path)
+					}
+					_, err := t.parseFileWithLevel(name, path, level)
+					if err != nil {
+						return nil, err
+					}
+					node.Name = name
+				}
+			case *parse.BranchNode:
+				push(node.ElseList)
+				push(node.List)
+			case *parse.ApplyNode:
+				push(node.ElseList)
+				push(node.List)
+			}
+		}
+	}
+
+	for name, tree := range trees {
+		_, err := t.addParseTree(name, tree)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	tt, err = t.parse(name, text)
-	if err != nil {
-		return nil, err
-	}
-	return tt, nil
+	return t.Lookup(name), nil
 }
 
 func (t *Template) Lookup(name string) *Template {
@@ -119,39 +175,39 @@ func (t *Template) Execute(w io.Writer, data interface{}) error {
 	}
 }
 
-func (t *Template) parse(name, text string) (*Template, error) {
+func (t *Template) addParseTree(name string, tree *parse.Tree) (*Template, error) {
 	switch tmpl := t.tmpl.(type) {
 	case *ttemplate.Template:
 		debug("Parse:", name)
-		tmpl, err := tmpl.New(name).Parse(text)
+		tt, err := tmpl.AddParseTree(name, tree)
 		if err != nil {
 			return nil, err
 		}
-		return &Template{tmpl: tmpl, safe: t.safe, funcs: t.funcs}, nil
-	case *htemplate.Template:
-		debug("Parse:", name)
-		tt, err := tmpl.New(name).Parse(text)
-		if tt == nil {
-			return nil, err
-		}
-		return &Template{tmpl: tmpl, safe: t.safe, funcs: t.funcs}, nil
+		return &Template{tmpl: tt, safe: t.safe, funcs: t.funcs}, nil
+	// case *htemplate.Template:
+	// 	debug("Parse:", name)
+	// 	tt, err := tmpl.New(name).AddParseTree(name, tree)
+	// 	if tt == nil {
+	// 		return nil, err
+	// 	}
+	// 	return &Template{tmpl: tmpl, safe: t.safe, funcs: t.funcs}, nil
 	default:
 		if t.safe {
-			debug("New:", name)
-			funcs := htemplate.FuncMap(t.funcs)
-			tmpl, err := htemplate.New(name).Funcs(funcs).Parse(text)
-			if err != nil {
-				return nil, err
-			}
-			t.tmpl = tmpl
+			// debug("New:", name)
+			// funcs := htemplate.FuncMap(t.funcs)
+			// tmpl, err := htemplate.New(name).Funcs(funcs).Parse(text)
+			// if err != nil {
+			// 	return nil, err
+			// }
+			// t.tmpl = tmpl
 		} else {
 			debug("New:", name)
 			funcs := ttemplate.FuncMap(t.funcs)
-			tmpl, err := ttemplate.New(name).Funcs(funcs).Parse(text)
+			tt, err := ttemplate.New(name).Funcs(funcs).AddParseTree(name, tree)
 			if err != nil {
 				return nil, err
 			}
-			t.tmpl = tmpl
+			t.tmpl = tt
 		}
 		return t, nil
 	}

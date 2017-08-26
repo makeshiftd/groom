@@ -1,5 +1,5 @@
 {{- define "content" -}}
-    {{ .Greeting }}
+    {{ apply upper $content }}{{ .Greeting }}{{ end }}
 {{- end -}}
 
 {{- template `import layout` . -}}
