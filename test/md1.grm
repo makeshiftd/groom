@@ -1,0 +1,19 @@
+<html>
+    <body>
+{{ apply markdown $content }}
+Hello World
+===========
+
+List:
+
+- One
+- Two
+- Three
+
+Python code block:
+
+    greeting = "Hello World"
+    print(greeting)
+{{ end }}
+    </body>
+</html>

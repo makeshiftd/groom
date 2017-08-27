@@ -8,14 +8,16 @@ import (
 	"os/exec"
 
 	"github.com/makeshiftd/groom/internal/template"
+	"github.com/russross/blackfriday"
 )
 
 var funcs = template.FuncMap{
-	"cat":   catFunc,
-	"exec":  execFunc,
-	"json":  jsonFunc,
-	"stdin": stdinFunc,
-	"str":   strFunc,
+	"cat":      catFunc,
+	"exec":     execFunc,
+	"json":     jsonFunc,
+	"stdin":    stdinFunc,
+	"str":      strFunc,
+	"markdown": markdownFunc,
 }
 
 func catFunc(args ...interface{}) ([]byte, error) {
@@ -83,4 +85,15 @@ func strFunc(arg interface{}) (string, error) {
 
 func stdinFunc() ([]byte, error) {
 	return ioutil.ReadAll(os.Stdin)
+}
+
+func markdownFunc(arg interface{}) (interface{}, error) {
+	switch arg := arg.(type) {
+	case string:
+		return string(blackfriday.MarkdownCommon([]byte(arg))), nil
+	case []byte:
+		return blackfriday.MarkdownCommon(arg), nil
+	default:
+		return nil, fmt.Errorf("groom: markdown: unsupported type: %T", arg)
+	}
 }
